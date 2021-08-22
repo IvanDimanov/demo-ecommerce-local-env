@@ -1,0 +1,60 @@
+version: "3.9"
+   
+services:
+  postgres-service:
+    image: postgres:12.8-alpine
+    volumes:
+      # Makes sure we have the same DB when we start the app.
+      # Whenever we want to recreate the DB - we just can delete the folder.
+      # We can easily simulate other environments (`dev`, `qa`, `production`) or localhost of colleagues
+      # simply by exchange .zip files of the DB. 
+      - ./data/db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=demo-ecommerce
+      - POSTGRES_USER=postgres-user
+      - POSTGRES_PASSWORD=postgres-password
+    ports:
+      # Useful to browse the DB using pgAdmin
+      - 5433:5432
+
+
+  db-migrations-service:
+    build:
+      context: ../demo-ecommerce-db-migrations
+      dockerfile: ../demo-ecommerce-local-env/db-migrations.Dockerfile
+    environment:
+      DB_DIALECT: postgres
+      DB_URL: postgres://postgres-user:postgres-password@postgres-service:5432/demo-ecommerce
+      DB_LOGGING: 'true'
+    volumes:
+      - ../demo-ecommerce-db-migrations:/demo-ecommerce-db-migrations/
+    depends_on:
+      - postgres-service
+
+
+  backend-service:
+    build:
+      context: ../demo-ecommerce-backend
+      dockerfile: ../demo-ecommerce-local-env/backend.Dockerfile
+    environment:
+      # Server
+      NODE_ENV: production
+      PORT: '8000'
+      HOST: '0.0.0.0'
+
+      # Data Base
+      DB_URL: postgres://postgres-user:postgres-password@postgres-service:5432/demo-ecommerce
+      DB_LOGGING: 'true'
+
+      # API
+      ENABLE_CORS: 'true'
+      ENABLE_SWAGGER: 'true'
+      SWAGGER_HOST: localhost:8000
+      SWAGGER_DEFAULT_SCHEME: HTTP
+    volumes:
+      - ../demo-ecommerce-backend:/demo-ecommerce-backend/
+    depends_on:
+      - postgres-service
+    ports:
+      # Make the BackEnd APIs accessible
+      - 8000:8000
